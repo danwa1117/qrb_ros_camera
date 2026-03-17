@@ -37,7 +37,6 @@
 
 #include <string>
 #include <vector>
-#include <cstdint>
 
 namespace qrb_camera
 {
