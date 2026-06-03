@@ -24,11 +24,12 @@ ament_auto_add_library(qrb_camera SHARED
 )
 
 target_link_libraries(qrb_camera
+  PRIVATE
 #  camera_metadata
-  qmmf_recorder_client
-  qmmf_camera_metadata
-  qmmf_utils
-  PkgConfig::QMMF_CAMERA_METADATA
+    qmmf_recorder_client
+    qmmf_camera_metadata
+    qmmf_utils
+    PkgConfig::QMMF_CAMERA_METADATA
 )
 
 set_target_properties(qrb_camera PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION 2)
@@ -46,7 +47,7 @@ if(BUILD_TESTING)
   )
 
   target_link_libraries(qrb_camera_test
-    camera_metadata
+    # camera_metadata
     qmmf_recorder_client
     qmmf_camera_metadata
     qmmf_utils
