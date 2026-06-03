@@ -11,7 +11,7 @@ env:
 jobs:
   ros-build:
     uses: qualcomm-qrb-ros/qrb_ros_gh_actions/.github/workflows/ubuntu-build.yml@main
-    with:
-      env_setup_commands: |
-        echo "LD_LIBRARY_PATH=/usr/lib/qcm6490:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-        echo "LIBRARY_PATH=/usr/lib/qcm6490:$LIBRARY_PATH" >> $GITHUB_ENV        
+    #with:
+      #env_setup_commands: |
+      #  echo "LD_LIBRARY_PATH=/usr/lib/qcm6490:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+      #  echo "LIBRARY_PATH=/usr/lib/qcm6490:$LIBRARY_PATH" >> $GITHUB_ENV        
