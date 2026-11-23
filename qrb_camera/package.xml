@@ -2,17 +2,17 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>qrb_camera</name>
-  <version>2.0.3</version>
-  <description>Qualcomm Robotics Camera Interface</description>
-  <maintainer email="quic_zhanlin@quicinc.com">Zhanye Lin</maintainer>
+  <version>3.0.0</version>
+  <description>Qualcomm Robotics camera manager: loads the camera backends through plugin_discovery (no ROS)</description>
+  <maintainer email="danwa@qti.qualcomm.com">Dan Wang</maintainer>
   <license>BSD-3-Clause-Clear</license>
 
-  <buildtool_depend>ament_cmake_auto</buildtool_depend>
-
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
+  <buildtool_depend>cmake</buildtool_depend>
+  <!-- plugin_discovery: https://github.com/qualcomm-qrb-ros/plugin_discovery (deb: plugin-discovery) -->
+  <depend>plugin_discovery</depend>
+  <depend>camera_interface</depend>
 
   <export>
-    <build_type>ament_cmake</build_type>
+    <build_type>cmake</build_type>
   </export>
 </package>

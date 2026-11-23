@@ -1,0 +1,16 @@
+Source: ros-jazzy-qrb-camera-platform-config
+Section: misc
+Priority: optional
+Maintainer: Dan Wang <danwa@qti.qualcomm.com>
+Build-Depends: debhelper-compat (= 13), cmake
+Homepage: https://github.com/qualcomm-qrb-ros/qrb_ros_camera
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-qrb-camera-platform-config
+Architecture: all
+Depends: ${misc:Depends}, plugin-discovery (>= 0.3.0)
+Conflicts: plugin-discovery-platform-config
+Description: plugin_discovery camera configuration for IQ9 and IQ10 on Ubuntu
+ Platform configuration candidates of the camera domain: qmmf on IQ9 (QCS9075),
+ qcarcam on IQ10 (QAM8797P). platform-detect links the one matching the machine
+ into /etc/plugin_discovery/platform.d/.

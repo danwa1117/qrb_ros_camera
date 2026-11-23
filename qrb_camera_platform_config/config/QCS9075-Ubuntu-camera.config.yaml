@@ -1,0 +1,15 @@
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+# Platform configuration for IQ9 (machine QCS9075) running Ubuntu: which camera backends to load.
+#
+# A candidate: platform-detect links it to /etc/plugin_discovery/platform.d/camera.config.yaml
+# when /sys/devices/soc0/machine is QCS9075 (case-insensitive) and the OS is Ubuntu.
+# The first entry is the default backend. Only backend names (the `backend:` of the manifests)
+# belong here; camera ids, resolutions and calibration are parameters of qrb_ros_camera.
+#
+# QCS9075 confirmed on an IQ9 board (verify_board.sh step 0).
+# The same file also lives in plugin_discovery (branch platform-config, camera/); keep them equal.
+
+domains:
+  camera:
+    backends: [qmmf]

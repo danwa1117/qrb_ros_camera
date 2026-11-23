@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>camera_backend_qcarcam</name>
+  <version>1.0.0</version>
+  <description>QCarCam camera backend (IQ10) for plugin_discovery (no ROS)</description>
+  <maintainer email="danwa@qti.qualcomm.com">Dan Wang</maintainer>
+  <license>BSD-3-Clause-Clear</license>
+
+  <buildtool_depend>cmake</buildtool_depend>
+  <depend>plugin_discovery</depend>
+  <depend>camera_interface</depend>
+  <!-- QCarCam vendor SDK: qcarcam.h, libqcxclient, libqcxosal (as in qrb_ros_camera for IQ10) -->
+  <depend>camera-qcx-dev</depend>
+
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+</package>

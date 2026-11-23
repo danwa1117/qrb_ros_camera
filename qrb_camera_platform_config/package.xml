@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>qrb_camera_platform_config</name>
+  <version>0.1.0</version>
+  <description>plugin_discovery platform configuration of the camera domain for IQ9 (qmmf) and IQ10 (qcarcam) on Ubuntu</description>
+  <maintainer email="danwa@qti.qualcomm.com">Dan Wang</maintainer>
+  <license>BSD-3-Clause-Clear</license>
+
+  <buildtool_depend>cmake</buildtool_depend>
+  <!-- platform-detect, run by the postinst / postrm -->
+  <exec_depend>plugin_discovery</exec_depend>
+
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+</package>

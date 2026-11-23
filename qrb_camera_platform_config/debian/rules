@@ -1,0 +1,15 @@
+#!/usr/bin/make -f
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+
+export DH_VERBOSE=1
+
+%:
+	dh $@ -v --buildsystem=cmake
+
+# The candidates go to /usr/share/plugin_discovery/platforms.d whatever the prefix:
+# platform-detect (package plugin-discovery, prefix /usr) reads only that directory.
+override_dh_auto_configure:
+	dh_auto_configure -- \
+		-DCMAKE_INSTALL_PREFIX="/opt/ros/jazzy" \
+		-DQRB_CAMERA_CANDIDATES_DIR="/usr/share/plugin_discovery/platforms.d"

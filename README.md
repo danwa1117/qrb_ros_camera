@@ -1,310 +1,157 @@
-## 👋 Overview
+# qrb_ros_camera_pd
 
-The `QRB ROS Camera` is a ROS package to publish the images from Qualcomm **GMSL** cameras. It provides:
+基于 [plugin_discovery](https://github.com/qualcomm-qrb-ros/plugin_discovery) 的跨平台 `qrb_ros_camera`：同一套代码、同一个 Ubuntu 镜像，IQ9 上使用 QMMF/CamX，IQ10 上使用 QCarCam。加载哪个 backend 由配置决定，代码里不做 SoC 判断。
 
-- Concurrent multiple streams output support.
-- Composable ROS node support.
-- Zero-Copy transport powered by `QRB ROS Transport`  .
-- Only support outputs in NV12 format
+> 状态：设计已确认，代码实现中，**尚未在真机验证**。设计细节见 [DESIGN.md](DESIGN.md)，真机验证步骤见 [VERIFY.md](VERIFY.md)。
 
+## 包
 
-<div align="center">
-  <img src="./docs/assets/architecture.png" alt="architecture">
-</div>
+| 包 | 作用 | 依赖 ROS |
+|---|---|---|
+| `camera_interface` | camera 域接口：`ICameraBackend`、`ICameraDevice`、frame/listener 类型 | 否 |
+| `camera_backend_qmmf` | IQ9 backend，封装 QMMF/CamX | 否 |
+| `camera_backend_qcarcam` | IQ10 backend，封装 QCarCam | 否 |
+| `qrb_camera` | `CameraManager`：通过 plugin_discovery 加载 backend，创建和管理相机 | 否 |
+| `qrb_ros_camera` | ROS 2 组件节点 | 是 |
+| `qrb_camera_platform_config` | IQ9 和 IQ10 的平台配置候选文件 | 否 |
 
-<br>
+| 平台 | machine（暂定） | 默认 backend |
+|---|---|---|
+| IQ9 + Ubuntu | `QCS9075` | `qmmf` |
+| IQ10 + Ubuntu | `QAM8797P` | `qcarcam` |
 
-The `qrb_ros_camera` is a ROS 2 package. It creates an image publisher with qrb_ros_transport for zero-copy transport. It supports node composition, making it possible to improve performance using ROS intra-process communication.
+## 依赖
 
-The `qrb_camera` is a C++ library, it provides APIs to `qrb_ros_camera` for querying images from the lower layer `QCarCam` library. It includes 2 modules:
-- The module `camera_manager` used to manage camera streams, which enables multiple stream support.
-- The module `qcarcam_camera` used to call QCarCam APIs to manage camera streams and handle frame delivery via DMA-heap buffers.
+- [plugin_discovery](https://github.com/qualcomm-qrb-ros/plugin_discovery) ≥ 0.3.0（deb：`plugin-discovery`，装在 `/usr`）。构建和运行都需要它。
+- `yaml-cpp`（plugin_discovery 依赖）、C++17、CMake ≥ 3.16。
+- vendor SDK：IQ9 是 QMMF SDK；IQ10 是 `camera-qcx-dev`（`qcarcam.h`、`libqcxclient`、`libqcxosal`）。找不到某个 SDK 时，对应的 backend 会被跳过、不编译。
+- ROS 2 Jazzy（只有 `qrb_ros_camera` 需要）。
 
-The `qrb_ros_transport` is a ROS 2 package, it supports zero-copy image transport with Linux DMA buffer and implements ROS type adaption, make it compatible with both intra- and inter-process communication.
+## 构建
 
-The `QCarCam` (Qualcomm Camera Client) is the Qualcomm camera framework, it exports APIs for accessing Qualcomm camera hardware via the QCX camera service.
-
-## 🔎 Table of contents
-  * [APIs](#-apis)
-     * [`qrb_ros_camera` APIs](#-qrb_ros_camera-apis)
-     * [`qrb_camera` APIs](#-qrb_camera-apis)
-  * [Supported targets](#-supported-targets)
-  * [Installation](#-installation)
-  * [Usage](#-usage)
-     * [Starting the camera node](#start-the-camera-node)
-     * [Enable mutiple streams](#enable-multiple-streams)
-     * [Enable zero copy transport](#enable-zero-copy-transport)
-  * [Build from source](#-build-from-source)
-  * [Contributing](#-contributing)
-  * [Contributors](#%EF%B8%8F-contributors)
-  * [FAQs](#-faqs)
-  * [License](#-license)
-
-## ⚓ APIs
-
-### 🔹 `qrb_ros_camera` APIs
-
-#### ROS interfaces
-
-<table>
-  <tr>
-    <th>Interface</th>
-    <th>Name</th>
-    <th>Type</th>
-    <td>Description</td>
-  </tr>
-  <tr>
-    <td>Publisher</td>
-    <td>/cam${camera_id}_${stream_name}</td>
-    <td>qrb_ros::transport::type::Image</td>
-    <td>output image (zero-copy DMA-buf)</td>
-  </tr>
-  <tr>
-    <td></td>
-    <td>/cam${camera_id}_${stream_name}_camera_info</td>
-    <td>sensor_msgs/msg/CameraInfo</td>
-    <td>camera information (per stream)</td>
-  </tr>
-</table>
-
-#### ROS parameters
-
-<table>
-  <tr>
-    <th>Name</th>
-    <th>Type</th>
-    <th>Description</td>
-    <th>Default Value</td>
-  </tr>
-  <tr>
-    <td>camera_id</td>
-    <td>int64</td>
-    <td>The camera device ID (QCarCam inputId)</td>
-    <td>0</td>
-  </tr>
-  <tr>
-    <td>stream_size</td>
-    <td>uint64</td>
-    <td>Count of camera streams</td>
-    <td>1</td>
-  </tr>
-  <tr>
-    <td>stream_name</td>
-    <td>string[]</td>
-    <td>camera stream names</td>
-    <td>["stream1"]</td>
-  </tr>
-  <tr>
-    <td>${stream_name}.width</td>
-    <td>uint32</td>
-    <td>image width</td>
-    <td>1280</td>
-  </tr>
-  <tr>
-    <td>${stream_name}.height</td>
-    <td>uint32</td>
-    <td>image height</td>
-    <td>720</td>
-  </tr>
-  <tr>
-    <td>${stream_name}.fps</td>
-    <td>uint32</td>
-    <td>output image frequency(Hz)</td>
-    <td>30</td>
-  </tr>
-  <tr>
-    <td>camera_info_path</td>
-    <td>string</td>
-    <td>Camera intrinsic parameters YAML file path</td>
-    <td>config/camera_info_OX03F10_yuv.yaml</td>
-  </tr>
-  <tr>
-    <td>dump</td>
-    <td>bool</td>
-    <td>Dump received frames to disk (debug only)</td>
-    <td>false</td>
-  </tr>
-</table>
-
-> [!Note]
-> The parameter values should be set according to the actual camera hardware capabilities.
-
-### 🔹 `qrb_camera` APIs
-
-<table>
-  <tr>
-    <th>Function</th>
-    <th>Parameters</th>
-    <th>Description</th>
-  </tr>
-  <tr>
-    <td>int create_camera(CameraType type, uint32_t camera_id)</td>
-    <td>type: camera type, camera_id: camera id</td>
-    <td>Creates a camera and returns the camera index on success.</td>
-  </tr>
-  <tr>
-    <td>bool set_camera_parameter(int index, CameraConfigure & param)</td>
-    <td>index: camera index, param: camera parameters</td>
-    <td>Returns true when the camera parameters are set successfully.</td>
-  </tr>
-  <tr>
-    <td>bool start_camera(int index)</td>
-    <td>index: camera index</td>
-    <td>Starts the camera. Returns true when started successfully.</td>
-  </tr>
-  <tr>
-    <td>void stop_camera(int index)</td>
-    <td>index: camera index</td>
-    <td>Stop the camera.</td>
-  </tr>
-  <tr>
-    <td>bool register_callback(int index, ImageCallback image_cb)</td>
-    <td>index: camera index, image_cb: callback invoked for each new frame</td>
-    <td>Registers the callback for image frames. The callback receives a <code>std::unique_ptr&lt;CameraFrame&gt;</code> per frame.</td>
-  </tr>
-</table>
-
-> [!Note]
-> The parameter values should be set according to the actual camera hardware capabilities.
-
-## 🎯 Supported targets
-
-<table>
-  <tr>
-    <th>Development Hardware</th>
-    <td>RRD</td>
-  </tr>
-  <tr>
-    <th>GMSL Camera Support</th>
-    <td><li>LI-VENUS-OX03F10-96717-120H</li></td>
-  </tr>
-</table>
-
----
-
-## 🚀 Usage
-### Check whether the camera devices have been detected and obtain the corresponding camera_id
 ```bash
-journalctl -b |grep -i input_
-```
+# 1. plugin_discovery（只需一次）
+cd plugin_discovery
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build -j
+(cd build && cpack -G DEB) && sudo apt install ./build/plugin-discovery_*.deb
 
-### Start the camera node
-```bash
+# 2. 本仓库
 source /opt/ros/jazzy/setup.bash
-ros2 launch qrb_ros_camera qrb_ros_camera_launch.py
+colcon build --base-paths qrb_ros_camera_pd
 ```
 
-When using this launch script, it will use the default parameters:
+`-DREQUIRE_ALL_BACKENDS=ON`：缺少 vendor SDK 时报错，而不是跳过对应的 backend。
 
-```py
-parameters=[{
-    'camera_id': 0,
-    'stream_size': 1,
-    'stream_name': ['stream1'],
-    'stream1.height': 720,
-    'stream1.width':  1280,
-    'stream1.fps':    30,
-    'camera_info_path': os.path.join(
-        get_package_share_directory('qrb_ros_camera'),
-        'config', 'camera_info_OX03F10_yuv.yaml'),
-}]
-```
-
-It opens camera `0`, with `1` stream, using a resolution of `1280 x 720`, and outputs image at `30` Hz.
-
-You can override defaults via launch arguments:
+### 在 x86 上测试管理层（不需要 vendor SDK 和 ROS）
 
 ```bash
-ros2 launch qrb_ros_camera qrb_ros_camera_launch.py camera_id:=6 width:=1824 height:=1536 fps:=30
+PD=<plugin_discovery 的 install 目录>; INST=$PWD/install
+cmake -S camera_interface -B build/camera_interface -DCMAKE_INSTALL_PREFIX=$INST -DCMAKE_PREFIX_PATH=$PD
+cmake --install build/camera_interface
+cmake -S qrb_camera -B build/qrb_camera -DCMAKE_INSTALL_PREFIX=$INST -DCMAKE_PREFIX_PATH="$PD;$INST"
+cmake --build build/qrb_camera -j && (cd build/qrb_camera && ctest --output-on-failure)
 ```
 
-The output for these commands:
+`camera_manager_test` 用 fake backend 测试选择规则、人工指定、默认项不可用时报错、camera id 校验、生命周期和析构顺序。
+
+Ubuntu 22.04 自带 yaml-cpp 0.7，它没有 plugin_discovery 需要的 `yaml-cpp::yaml-cpp` target（0.8 才有；Ubuntu 24.04 自带 0.8，没有这个问题）。在 22.04 上构建 plugin_discovery 时加一个 alias：
 
 ```bash
-[INFO] [launch]: All log files can be found below /home/ubuntu/.ros/log/...
-[INFO] [launch]: Default logging verbosity is set to INFO
-[INFO] [component_container-1]: process started with pid [...]
-[component_container-1] [INFO] [...] [camera_container]: Load Library: /opt/ros/jazzy/lib/libcamera_node.so
-[component_container-1] [INFO] [...] [camera_node]: QRB Camera Node start
-[component_container-1] [INFO] [...] [camera_node]: load camera intrinsic param
-[component_container-1] [INFO] [...] [camera_node]: system time: ... ros time: ... time offset: ... ns
-[component_container-1] [INFO] [...] [camera_node]: QRB Camera Node init success
-...
+cat > /tmp/yaml_cpp_alias.cmake <<'EOF'
+find_package(yaml-cpp REQUIRED)
+if(TARGET yaml-cpp AND NOT TARGET yaml-cpp::yaml-cpp)
+  add_library(yaml-cpp::yaml-cpp ALIAS yaml-cpp)
+endif()
+EOF
+cmake -S plugin_discovery -B build ... -DCMAKE_PROJECT_plugin_discovery_INCLUDE=/tmp/yaml_cpp_alias.cmake
 ```
 
-Then you can check ROS topics or view image with the topic `/cam${camera_id}_${stream_name}` in RVIZ or RQT.
+如果装了 anaconda 之类自带 yaml-cpp 的环境，还要加 `-Dyaml-cpp_DIR=/usr/lib/x86_64-linux-gnu/cmake/yaml-cpp`，否则可能链接到它的版本。
+
+## 部署
 
 ```bash
-ros2 topic list
-/cam0_stream1
-/cam0_stream1_camera_info
+sudo apt install ./ros-jazzy-*.deb      # 接口、backend、qrb_camera、节点、平台配置
+# 平台配置包的 postinst 会运行 platform-detect --force，按本机 machine 链接配置
+pluginlib-detect -d camera --path /opt/ros/jazzy/share/camera/plugins
 ```
 
-### Enable zero copy transport
+在 IQ10 上，正确的输出应该是：
 
-The `qrb_ros_camera` supports directly sharing image `dmabuf_fd` between nodes, which can avoid image data memory copy with DDS.
-
-For detail about this feature, see https://docs.ros.org/en/rolling/Concepts/Intermediate/About-Composition.html
-
-We recommend using `launch` to compose multiple nodes:
-
-```python
-def generate_launch_description():
-    container = ComposableNodeContainer(
-        name='camera_container',
-        namespace='',
-        package='rclcpp_components',
-        executable='component_container',
-        composable_node_descriptions=[
-            ComposableNode(
-                package='qrb_ros_camera',
-                plugin='qrb_ros::camera::CameraNode',
-                name='camera_node',
-                parameters=[{
-                    # ...
-                }]
-            ),
-            ComposableNode(
-                package='qrb_ros_camera',
-                plugin='qrb_ros::camera::TestNode',
-                name='test',
-                remappings=[
-                    ('/image',       '/cam0_stream1'),
-                    ('/camera_info', '/cam0_stream1_camera_info'),
-                ],
-            )
-        ],
-        output='screen',
-    )
-
-    return launch.LaunchDescription([container])
+```
+Domain camera
+  load order (first = default):
+    1. qcarcam  [platform] /etc/plugin_discovery/platform.d/camera.config.yaml
 ```
 
----
-
-## 👨‍💻 Build from source
+如果 `pluginlib-detect` 提示没有配置，先核对 machine：
 
 ```bash
-cd <workspace>
-./build-utils/ubuntu/build.py --gen-debians --package ros-jazzy-qrb-camera
-./build-utils/ubuntu/build.py --gen-debians --package ros-jazzy-qrb-ros-camera
-```
-Built `.deb` files are output to:
-```bash
-<workspace>/debian_packages/oss/ros-jazzy-qrb-camera
-<workspace>/debian_packages/oss/ros-jazzy-qrb-ros-camera
+cat /sys/devices/soc0/machine
+cat /var/lib/plugin_discovery/platform-detect.done
+platform-detect --dry-run
 ```
 
-Check whether the camera devices have been detected and obtain the corresponding camera_id
+候选文件名中的 machine 必须和板子上读到的值完全一致（只忽略大小写）。没有匹配时，camera 域保持未配置，所有 backend 都会加载，默认项按插件名排序是 qcarcam，**IQ9 上会因此无法启动**。
+
+## 运行
+
 ```bash
-journalctl -b |grep -i input_
-```
-Run and debug
-```bash
-source /opt/ros/jazzy/setup.bash
-ros2 launch qrb_ros_camera qrb_ros_camera_launch.py camera_id:=<camera_id> width:=<width> height:=<height> fps:=<fps>
+# 默认 backend 由平台配置决定
+ros2 launch qrb_ros_camera qrb_ros_camera_launch.py camera_id:=0
+
+# 指定 backend（只加载这一个，绕过配置）
+ros2 launch qrb_ros_camera qrb_ros_camera_launch.py camera_backend:=qcarcam camera_id:=11 ...
+PLUGIN_DISCOVERY_BACKEND_CAMERA=qcarcam ros2 launch ...     # 等价写法
 ```
 
-## 📜 License
+- `camera_id` 是 backend 自己的 id：IQ9 是 QMMF 的 camera id，IQ10 是 QCarCam 的 inputId（例如 11、6）。
+- `camera_info_path` 默认用包里自带的示例标定 `camera_info_OX03F10_yuv.yaml`（同 IQ10 原来的 launch）。它只影响 `camera_info` 话题里的内参，不影响出帧；需要准确内参时，再指定实际传感器的标定文件。
 
-Project is licensed under the [BSD-3-Clause](https://spdx.org/licenses/BSD-3-Clause.html) License. See [LICENSE](./LICENSE) for the full license text.
+## 客户配置
+
+把 `NN-camera-<来源>.config.yaml` 放进 `/etc/plugin_discovery/config.d/`。例如，把自己的 backend 放到最前面：
+
+```yaml
+domains:
+  camera:
+    backends: [my_camera]
+```
+
+规则（`backends`、`disable`、`reset`）见 plugin_discovery 的 `docs/TEMPLATES.md`。
+
+## 已知问题
+
+### IQ10：节点比 QCX 先启动时启动失败
+
+只有把节点做成开机自启动时才会遇到。`qcx_server` 本身开机自启动，节点在开机之后手动启动时，QCX 已经就绪，不会有这个问题。
+
+**现象**：节点在 QCX server 就绪之前启动（例如由 systemd 或开机脚本在开机过程中拉起），节点启动失败，日志类似：
+
+```
+skipped camera/QCarCamCamera [fault]: QCarCamInitialize failed ...
+create_camera failed: default backend 'camera/QCarCamCamera' is not loaded (fault)
+```
+
+**原因**：QCX server 是一个独立进程，开机时它不一定先于节点就绪。qcarcam backend 在加载时（`probe()`）会初始化 QCarCam；此时 QCX 还没就绪，就会报 Fault，节点没有可用的 backend。目前没有可靠的就绪检测手段（原代码里检查 `/dev/mqueue/QCX_debfcadf` 的逻辑并不可靠，已注释掉），所以暂时没有在 probe 里等待或重试。
+
+**规避方法**：
+- 手动启动：确认 `systemctl is-active qcx_server.service` 为 `active` 后再执行 `ros2 launch ...`。
+- 开机自启动：节点的 systemd unit 里加上
+  ```ini
+  [Unit]
+  Wants=qcx_server.service
+  After=qcx_server.service
+  ```
+  `qcx_server.service` 的类型是 `Type=notify`，`After=` 会等到它报告就绪之后才启动节点。
+
+如果以后需要节点开机自启动，还可以在 qcarcam 的 `probe()` 里加有限次的重试（DESIGN.md 第 11 节，C4）。
+
+### 帧数据在回调返回后不再有效（IQ9 和 IQ10 都是）
+
+`CameraFrame::data` 和 `fd`、以及节点发布出去的图像消息里的 dma-buf，指向的都是 backend 的 buffer。回调一返回，这个 buffer 就会还给驱动（QCarCam）或 recorder（QMMF），几帧之后就会被新数据覆盖。订阅方处理得慢，或者消息在队列里排队时，可能读到后面的帧。要在回调之外使用数据，必须在回调内拷贝，或者 `dup()` fd 并尽快处理完。这是原来 IQ9 和 IQ10 实现就有的行为（DESIGN.md 第 11 节 R7）。
+
+## 许可证
+
+BSD-3-Clause-Clear
